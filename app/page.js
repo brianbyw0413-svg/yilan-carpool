@@ -185,7 +185,9 @@ export default function CarpoolPage() {
       {/* ─── Header ─── */}
       <header className="header">
         <div>
-          <img src="/logo-gold.png" alt="PickYouUP" className="header-logo" />
+          <a href="https://pickyouup.tw" target="_blank" rel="noopener noreferrer">
+            <img src="/logo-gold.png" alt="PickYouUP" className="header-logo" style={{ cursor: "pointer" }} />
+          </a>
         </div>
         <div style={{ textAlign: "right" }}>
           <div className="header-title">宜蘭共乘平台</div>
