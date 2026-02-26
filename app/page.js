@@ -60,6 +60,7 @@ export default function CarpoolPage() {
     time: "07:00",
     pickup: "",
     dropoff: "",
+    meetingPoint: "",
     passengers: "1",
     note: "",
   });
@@ -120,6 +121,7 @@ export default function CarpoolPage() {
       ride_time: form.time,
       pickup_location: form.pickup,
       dropoff_location: form.dropoff,
+      meeting_point: form.meetingPoint || null,
       passenger_count: parseInt(form.passengers),
       note: form.note || null,
       status: "priority",
@@ -153,6 +155,7 @@ export default function CarpoolPage() {
         time: "07:00",
         pickup: "",
         dropoff: "",
+        meetingPoint: "",
         passengers: "1",
         note: "",
       });
@@ -171,7 +174,7 @@ export default function CarpoolPage() {
   const buildContactUrl = (ride) => {
     const dirLabel = ride.direction === "to_taipei" ? "宜蘭→台北" : "台北→宜蘭";
     const msg = encodeURIComponent(
-      `你好，我想詢問共乘：\n${formatDate(ride.ride_date)} ${ride.ride_time}\n${ride.pickup_location} → ${ride.dropoff_location}\n${ride.passenger_count}位乘客`
+      `你好，我想詢問共乘：\n${formatDate(ride.ride_date)} ${ride.ride_time}\n${ride.pickup_location} → ${ride.dropoff_location}${ride.meeting_point ? `\n上車地點：${ride.meeting_point}` : ""}\n${ride.passenger_count}位乘客`
     );
     return `${LINE_OA_URL}?text=${msg}`;
   };
@@ -242,6 +245,7 @@ export default function CarpoolPage() {
               <div className="ride-meta">
                 <span>{ride.passenger_count} 位乘客</span>
                 <span>{ride.passenger_name}</span>
+                {ride.meeting_point && <span>📍 {ride.meeting_point}</span>}
                 {ride.note && <span>{ride.note}</span>}
               </div>
 
@@ -358,6 +362,19 @@ export default function CarpoolPage() {
               </div>
 
               {/* Passengers */}
+              <div className="form-group">
+                <label className="form-label">詳細上車地點</label>
+                <input
+                  type="text" className="form-input"
+                  placeholder="例：礁溪轉運站、宜蘭火車站、南港高鐵站"
+                  value={form.meetingPoint} onChange={(e) => updateForm("meetingPoint", e.target.value)}
+                />
+                <div style={{ fontSize: 11, color: "var(--orange)", marginTop: 4, lineHeight: 1.5 }}>
+                  共乘行程請儘量填寫沿途公共運輸站點（車站、捷運站、轉運站），方便司機安排路線接送
+                </div>
+              </div>
+
+              {/* Passengers count */}
               <div className="form-group">
                 <label className="form-label">乘客人數</label>
                 <select className="form-select" value={form.passengers} onChange={(e) => updateForm("passengers", e.target.value)}>
