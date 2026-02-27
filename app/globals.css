@@ -247,6 +247,52 @@ body {
   opacity: 0.85;
 }
 
+/* ─── Certified Card (PickYouUP 認證) ─── */
+.ride-card-certified {
+  border: 2px solid rgba(212, 175, 55, 0.5);
+  animation: certifiedGlow 2.5s ease-in-out infinite;
+  position: relative;
+}
+
+@keyframes certifiedGlow {
+  0%, 100% {
+    border-color: rgba(212, 175, 55, 0.3);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.1);
+  }
+  50% {
+    border-color: rgba(212, 175, 55, 0.8);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
+  }
+}
+
+.certified-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(212, 175, 55, 0.12);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  white-space: nowrap;
+}
+
+/* ─── Welcome Box ─── */
+.welcome-box {
+  background: rgba(212, 175, 55, 0.05);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text);
+  white-space: pre-line;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
 /* ─── Funnel Hint ─── */
 .funnel-hint {
   display: flex;

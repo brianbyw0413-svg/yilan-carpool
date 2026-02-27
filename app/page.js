@@ -8,6 +8,15 @@ const LIFF_ID = "2009262593-SeB2VF83";
 const LINE_OA_ID = "@835acfgq";
 const LINE_OA_URL = `https://line.me/R/oaMessage/${LINE_OA_ID}/`;
 const LIFF_BOOKING_URL = "https://liff.line.me/2009218677-iJIIF1oj";
+
+/* ─── VIP 認證名單 ─── */
+const VIP_UIDS = ["U835ec891ba538bd68895ccac3b66ce5e"]; // Boss
+const VIP_NAMES = ["張毅賢"]; // Sam
+function isCertified(ride) {
+  if (VIP_UIDS.includes(ride.passenger_line_uid)) return true;
+  return VIP_NAMES.some(n => ride.passenger_name?.includes(n));
+}
+
 const YILAN_AREAS = [
   "宜蘭市", "羅東鎮", "頭城鎮", "礁溪鄉", "蘇澳鎮",
   "員山鄉", "壯圍鄉", "五結鄉", "冬山鄉", "三星鄉",
@@ -25,35 +34,38 @@ const TIME_SLOTS = [
   "18:30", "19:00", "19:30", "20:00", "21:00", "22:00",
 ];
 
-const DISCLAIMER_TEXT = "此共乘平台為無償使用，僅提供乘客與司機媒合空間，本網站不對雙方收取任何費用，共乘行程若產生費用，由司機與乘客雙方自行議定，所衍生之一切糾紛與本網站無涉。";
+const WELCOME_TEXT = `大家好，我們是 PickYouUP，這是一個完全無償開放使用的空間。
+
+最初的起心動念，是想提供一個管道給我們住在宜蘭的司機伙伴，在空車往返台北宜蘭時，以接近成本的價格順道搭載有需要的乘客。不過在思考過後，我們決定開放給所有有需求的乘客及駕駛。
+
+但有幾點善意的提醒想請大家配合：
+
+一、共乘網完全無償提供使用，若駕駛及乘客有任何糾紛，與 PickYouUP 無涉。
+
+二、這不是照錶收費的行程，但我們深信每項服務都有對應的價值，金錢其次，但尊重必須！請乘客及駕駛務必互相尊重（不飲食、不遲到、準時上下車等等）。
+
+三、我們在宜蘭的司機伙伴服務優質、乘客保險完善、共乘收費也合理，如果有伙伴們發起共乘邀約，行程會置頂，在卡片的右上角會有 PickYouUP 認證的標誌（這是我們的一點小私心），如果可以的話，請大家多多支持 :)`;
+
 const PRIORITY_MINUTES = 30;
 
-function getTomorrow() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-}
+function getTomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; }
 function getToday() { return new Date().toISOString().split("T")[0]; }
 function formatDate(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
-  const wd = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
-  return `${d.getMonth() + 1}/${d.getDate()} (${wd})`;
+  return `${d.getMonth() + 1}/${d.getDate()} (${"日一二三四五六"[d.getDay()]})`;
 }
 
-/* ─── 行程層級判斷（僅適用乘客發起的行程） ─── */
 function getRideLayer(ride) {
   if (ride.status === "matched") return "matched";
-  if (ride.role === "driver") return "public"; // 駕駛行程不走三層，直接公開
+  if (ride.role === "driver") return "public";
   const now = Date.now();
   const expiresAt = ride.priority_expires_at ? new Date(ride.priority_expires_at).getTime() : 0;
   const created = new Date(ride.created_at || ride.priority_expires_at).getTime();
-  const hoursSince = (now - created) / 3600000;
   if (expiresAt && now < expiresAt) return "priority";
-  if (hoursSince < 48) return "public";
+  if ((now - created) / 3600000 < 48) return "public";
   return "fallback";
 }
 
-/* ─── 倒數 ─── */
 function PriorityCountdown({ expiresAt }) {
   const [rem, setRem] = useState("");
   useEffect(() => {
@@ -76,16 +88,17 @@ export default function CarpoolPage() {
   const [direction, setDirection] = useState("to_taipei");
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingRide, setPendingRide] = useState(null);
+  const [successRole, setSuccessRole] = useState("passenger");
 
   const [liffReady, setLiffReady] = useState(false);
   const [liffUser, setLiffUser] = useState(null);
 
-  /* 每秒更新（驅動倒數） */
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
 
@@ -114,10 +127,9 @@ export default function CarpoolPage() {
 
   /* Form */
   const [form, setForm] = useState({
-    role: "passenger", // passenger | driver
-    name: "", phone: "", direction: "to_taipei",
+    role: "passenger", name: "", phone: "", direction: "to_taipei",
     date: getTomorrow(), time: "07:00",
-    pickup: "", dropoff: "", meetingPoint: "",
+    pickup: "", dropoff: "", meetingPoint: "", dropoffPoint: "",
     passengers: "1", seats: "3", note: "",
   });
   const u = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -128,8 +140,7 @@ export default function CarpoolPage() {
   /* Fetch */
   const fetchRides = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("carpool_rides").select("*")
+    const { data, error } = await supabase.from("carpool_rides").select("*")
       .gte("ride_date", getToday())
       .in("status", ["priority", "public", "matched"])
       .order("ride_date", { ascending: true })
@@ -140,10 +151,22 @@ export default function CarpoolPage() {
 
   useEffect(() => { fetchRides(); const id = setInterval(fetchRides, 30000); return () => clearInterval(id); }, [fetchRides]);
 
-  const filteredRides = rides.filter(r => r.direction === direction);
+  /* 排序：認證置頂 */
+  const filteredRides = rides
+    .filter(r => r.direction === direction)
+    .sort((a, b) => {
+      const ca = isCertified(a) ? 0 : 1;
+      const cb = isCertified(b) ? 0 : 1;
+      return ca - cb;
+    });
 
-  /* Open form */
-  const openForm = () => {
+  /* Press + → show welcome first */
+  const handleFab = () => {
+    setShowWelcome(true);
+  };
+
+  const acceptWelcome = () => {
+    setShowWelcome(false);
     setForm(p => ({
       ...p, direction,
       name: p.name || liffUser?.name || "",
@@ -157,6 +180,8 @@ export default function CarpoolPage() {
     e.preventDefault();
     if (!form.name || !form.pickup || !form.dropoff) return;
     const isDriver = form.role === "driver";
+    const noteArr = [form.note];
+    if (!isDriver && form.dropoffPoint) noteArr.unshift(`下車地點：${form.dropoffPoint}`);
     setPendingRide({
       role: form.role,
       passenger_name: form.name,
@@ -169,10 +194,11 @@ export default function CarpoolPage() {
       dropoff_location: form.dropoff,
       meeting_point: form.meetingPoint || null,
       passenger_count: isDriver ? parseInt(form.seats) : parseInt(form.passengers),
-      note: form.note || null,
+      note: noteArr.filter(Boolean).join(" / ") || null,
       status: isDriver ? "public" : "priority",
       priority_expires_at: isDriver ? null : new Date(Date.now() + PRIORITY_MINUTES * 60000).toISOString(),
     });
+    setSuccessRole(form.role);
     setShowForm(false);
     setShowDisclaimer(true);
   };
@@ -184,7 +210,7 @@ export default function CarpoolPage() {
     const { error } = await supabase.from("carpool_rides").insert([pendingRide]).select();
     if (error) { alert("發布失敗，請稍後再試"); console.error(error); }
     else {
-      setForm({ role: "passenger", name: liffUser?.name || "", phone: liffUser?.phone || "", direction: form.direction, date: getTomorrow(), time: "07:00", pickup: "", dropoff: "", meetingPoint: "", passengers: "1", seats: "3", note: "" });
+      setForm({ role: "passenger", name: liffUser?.name || "", phone: liffUser?.phone || "", direction: form.direction, date: getTomorrow(), time: "07:00", pickup: "", dropoff: "", meetingPoint: "", dropoffPoint: "", passengers: "1", seats: "3", note: "" });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 4000);
       fetchRides();
@@ -212,20 +238,13 @@ export default function CarpoolPage() {
     const layer = getRideLayer(ride);
     const isDriver = ride.role === "driver";
     if (layer === "matched") return <span className="ride-status matched">已媒合</span>;
-    if (layer === "priority") return (
-      <span className="ride-status priority">司機配對中<PriorityCountdown expiresAt={ride.priority_expires_at} /></span>
-    );
+    if (layer === "priority") return <span className="ride-status priority">司機配對中<PriorityCountdown expiresAt={ride.priority_expires_at} /></span>;
     if (layer === "fallback") return <span className="ride-status fallback">推薦專業接送</span>;
-    return <span className={`ride-status ${isDriver ? "driver" : "available"}`}>
-      {isDriver ? "找乘客" : "找司機"}
-    </span>;
+    return <span className={`ride-status ${isDriver ? "driver" : "available"}`}>{isDriver ? "找乘客" : "找司機"}</span>;
   };
 
-  /* ─── 角色標籤 ─── */
   const RoleTag = ({ role }) => (
-    <span className={`role-tag ${role}`}>
-      {role === "driver" ? "🚗 駕駛" : "🙋 乘客"}
-    </span>
+    <span className={`role-tag ${role}`}>{role === "driver" ? "🚗 駕駛" : "🙋 乘客"}</span>
   );
 
   /* ─── Action ─── */
@@ -240,17 +259,12 @@ export default function CarpoolPage() {
         <button onClick={handleProBooking} className="ride-contact-btn">PickYouUP 專業接送</button>
       </div>
     );
-    return (
-      <button onClick={() => handleContact(ride)} className="ride-contact-btn">
-        {isDriver ? "我要搭便車" : "我來載"}
-      </button>
-    );
+    return <button onClick={() => handleContact(ride)} className="ride-contact-btn">{isDriver ? "我要搭便車" : "我來載"}</button>;
   };
 
   /* ════════════ RENDER ════════════ */
   return (
     <div>
-      {/* ─── Header ─── */}
       <header className="header">
         <a href="https://pickyouup.tw" target="_blank" rel="noopener noreferrer">
           <img src="/logo-gold.png" alt="PickYouUP" className="header-logo" style={{ cursor: "pointer" }} />
@@ -264,13 +278,12 @@ export default function CarpoolPage() {
         </div>
       </header>
 
-      {/* ─── Direction Tabs ─── */}
       <div className="direction-tabs">
         <button className={`direction-tab ${direction === "to_taipei" ? "active" : ""}`} onClick={() => setDirection("to_taipei")}>宜蘭 → 台北</button>
         <button className={`direction-tab ${direction === "to_yilan" ? "active" : ""}`} onClick={() => setDirection("to_yilan")}>台北 → 宜蘭</button>
       </div>
 
-      {/* ─── Ride Cards ─── */}
+      {/* ─── Rides ─── */}
       <div className="rides-container">
         {loading ? (
           <div className="empty-state">
@@ -284,35 +297,62 @@ export default function CarpoolPage() {
             <div className="empty-state-sub">點右下角 + 發布你的共乘需求</div>
           </div>
         ) : (
-          filteredRides.map((ride) => (
-            <div key={ride.id} className={`ride-card ride-card-${getRideLayer(ride)}`}>
-              <div className="ride-card-header">
-                <span className="ride-date">{formatDate(ride.ride_date)} {ride.ride_time.slice(0, 5)}</span>
-                <StatusBadge ride={ride} />
-              </div>
+          filteredRides.map((ride) => {
+            const certified = isCertified(ride);
+            return (
+              <div key={ride.id} className={`ride-card ride-card-${getRideLayer(ride)} ${certified ? "ride-card-certified" : ""}`}>
+                <div className="ride-card-header">
+                  <span className="ride-date">{formatDate(ride.ride_date)} {ride.ride_time.slice(0, 5)}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {certified && (
+                      <span className="certified-badge">
+                        <img src="/logo-gold.png" alt="" style={{ height: 12, width: "auto", marginRight: 3, verticalAlign: "middle" }} />
+                        認證
+                      </span>
+                    )}
+                    <StatusBadge ride={ride} />
+                  </div>
+                </div>
 
-              <div className="ride-route">
-                <span className="ride-location">{ride.pickup_location}</span>
-                <span className="ride-arrow">→</span>
-                <span className="ride-location">{ride.dropoff_location}</span>
-              </div>
+                <div className="ride-route">
+                  <span className="ride-location">{ride.pickup_location}</span>
+                  <span className="ride-arrow">→</span>
+                  <span className="ride-location">{ride.dropoff_location}</span>
+                </div>
 
-              <div className="ride-meta">
-                <RoleTag role={ride.role || "passenger"} />
-                <span>{ride.passenger_name}</span>
-                <span>{ride.role === "driver" ? `可載${ride.passenger_count}人` : `${ride.passenger_count}位乘客`}</span>
-              </div>
-              {ride.meeting_point && <div className="ride-meeting">📍 {ride.meeting_point}</div>}
-              {ride.note && <div className="ride-meeting">{ride.note}</div>}
+                <div className="ride-meta">
+                  <RoleTag role={ride.role || "passenger"} />
+                  <span>{ride.passenger_name}</span>
+                  <span>{ride.role === "driver" ? `可載${ride.passenger_count}人` : `${ride.passenger_count}位乘客`}</span>
+                </div>
+                {ride.meeting_point && <div className="ride-meeting">📍 {ride.meeting_point}</div>}
+                {ride.note && <div className="ride-meeting">{ride.note}</div>}
 
-              <RideAction ride={ride} />
-            </div>
-          ))
+                <RideAction ride={ride} />
+              </div>
+            );
+          })
         )}
       </div>
 
       {/* ─── FAB ─── */}
-      <button className="fab" onClick={openForm} aria-label="發布共乘">+</button>
+      <button className="fab" onClick={handleFab} aria-label="發布共乘">+</button>
+
+      {/* ─── Welcome Modal ─── */}
+      {showWelcome && (
+        <div className="modal-overlay" onClick={() => setShowWelcome(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <div className="modal-title">歡迎使用宜蘭共乘平台</div>
+            <div className="welcome-box">{WELCOME_TEXT}</div>
+            <button className="disclaimer-btn" onClick={acceptWelcome}>我已了解，開始發布</button>
+            <button onClick={() => setShowWelcome(false)}
+              style={{ width: "100%", padding: 12, marginTop: 8, background: "transparent", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text-dim)", fontSize: 14, cursor: "pointer" }}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── Form Modal ─── */}
       {showForm && (
@@ -322,7 +362,7 @@ export default function CarpoolPage() {
             <div className="modal-title">發布共乘需求</div>
 
             <form onSubmit={handleSubmit}>
-              {/* 角色選擇 */}
+              {/* 角色 */}
               <div className="form-group">
                 <label className="form-label">我的角色</label>
                 <div className="role-selector">
@@ -378,14 +418,14 @@ export default function CarpoolPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">上車地區</label>
+                  <label className="form-label">{form.role === "driver" ? "可接乘客地區" : "上車地區"}</label>
                   <select className="form-select" value={form.pickup} onChange={(e) => u("pickup", e.target.value)} required>
                     <option value="">請選擇</option>
                     {pickupAreas.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">下車地區</label>
+                  <label className="form-label">{form.role === "driver" ? "乘客下車地區" : "下車地區"}</label>
                   <select className="form-select" value={form.dropoff} onChange={(e) => u("dropoff", e.target.value)} required>
                     <option value="">請選擇</option>
                     {dropoffAreas.map(a => <option key={a} value={a}>{a}</option>)}
@@ -393,15 +433,29 @@ export default function CarpoolPage() {
                 </div>
               </div>
 
+              {/* 詳細上車地點 */}
               <div className="form-group">
                 <label className="form-label">{form.role === "driver" ? "可上車地點" : "詳細上車地點"}</label>
                 <input type="text" className="form-input"
-                  placeholder={form.role === "driver" ? "例：可在礁溪轉運站、宜蘭火車站接" : "例：礁溪轉運站、宜蘭火車站、南港高鐵站"}
+                  placeholder={form.role === "driver" ? "例：可在礁溪轉運站、宜蘭火車站接" : "例：礁溪轉運站、宜蘭火車站"}
                   value={form.meetingPoint} onChange={(e) => u("meetingPoint", e.target.value)} />
                 <div style={{ fontSize: 11, color: "var(--orange)", marginTop: 4, lineHeight: 1.5 }}>
-                  {form.role === "driver" ? "填寫您沿途方便停靠的站點" : "請儘量填寫沿途公共運輸站點，方便司機安排路線"}
+                  請儘量填寫公共運輸站點，方便駕駛規劃
                 </div>
               </div>
+
+              {/* 詳細下車地點（僅乘客） */}
+              {form.role === "passenger" && (
+                <div className="form-group">
+                  <label className="form-label">詳細下車地點</label>
+                  <input type="text" className="form-input"
+                    placeholder="例：南港高鐵站、台北車站東三門"
+                    value={form.dropoffPoint} onChange={(e) => u("dropoffPoint", e.target.value)} />
+                  <div style={{ fontSize: 11, color: "var(--orange)", marginTop: 4, lineHeight: 1.5 }}>
+                    請儘量填寫公共運輸站點，方便駕駛規劃
+                  </div>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">{form.role === "driver" ? "可載人數" : "乘客人數"}</label>
@@ -417,7 +471,7 @@ export default function CarpoolPage() {
               <div className="form-group">
                 <label className="form-label">備註（選填）</label>
                 <textarea className="form-textarea"
-                  placeholder={form.role === "driver" ? "例：每日固定通勤，歡迎長期共乘" : "例：可在礁溪交流道上車"}
+                  placeholder={form.role === "driver" ? "例：每日固定通勤，歡迎長期共乘" : "例：有一件大行李"}
                   value={form.note} onChange={(e) => u("note", e.target.value)} rows={2} />
               </div>
 
@@ -429,15 +483,15 @@ export default function CarpoolPage() {
         </div>
       )}
 
-      {/* ─── Disclaimer ─── */}
+      {/* ─── Confirm Disclaimer ─── */}
       {showDisclaimer && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-handle" />
-            <div className="modal-title">共乘免責聲明</div>
-            <div className="disclaimer-box">{DISCLAIMER_TEXT}</div>
+            <div className="modal-title">確認送出</div>
+            <div className="disclaimer-box">確認送出後，您的共乘資訊將公開顯示於共乘牆上。</div>
             <button className="disclaimer-btn" onClick={confirmDisclaimer} disabled={submitting}>
-              {submitting ? "處理中..." : "我已了解，確認送出"}
+              {submitting ? "處理中..." : "確認送出"}
             </button>
             <button onClick={() => { setShowDisclaimer(false); setPendingRide(null); }} disabled={submitting}
               style={{ width: "100%", padding: 12, marginTop: 8, background: "transparent", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text-dim)", fontSize: 14, cursor: "pointer" }}>
@@ -452,10 +506,10 @@ export default function CarpoolPage() {
         <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.85)", zIndex: 300 }} onClick={() => setShowSuccess(false)}>
           <div className="success-check">✅</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: "var(--gold)", marginBottom: 16 }}>
-            {pendingRide?.role === "driver" ? "駕駛行程已發布！" : "共乘需求已發布！"}
+            {successRole === "driver" ? "駕駛行程已發布！" : "共乘需求已發布！"}
           </div>
           <div style={{ fontSize: 13, color: "var(--text-dim)", textAlign: "center", lineHeight: 2, padding: "0 32px" }}>
-            {pendingRide?.role === "driver"
+            {successRole === "driver"
               ? "乘客看到後將透過 LINE 與您聯繫"
               : <>① 司機 30 分鐘內優先接單<br />② 之後開放其他乘客共乘配對<br />③ 媒合結果將透過 LINE 通知您</>
             }
@@ -463,7 +517,6 @@ export default function CarpoolPage() {
         </div>
       )}
 
-      {/* ─── Footer ─── */}
       <footer className="footer">
         <a href="https://pickyouup.tw" target="_blank" rel="noopener noreferrer" className="footer-ad">
           <img src="/logo-gold.png" alt="PickYouUP" style={{ height: 20 }} />
