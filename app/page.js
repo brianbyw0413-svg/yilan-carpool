@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import liff from "@line/liff";
 
 /* ─── Constants ─── */
+const LIFF_ID = "2009218677-iJIIF1oj"; // TODO: 老闆建新的 LIFF app 後替換
 const LINE_OA_ID = "@835acfgq";
 const LINE_OA_URL = `https://line.me/R/oaMessage/${LINE_OA_ID}/`;
 const YILAN_AREAS = [
@@ -50,6 +52,49 @@ export default function CarpoolPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [pendingRide, setPendingRide] = useState(null);
+
+  /* LIFF state */
+  const [liffReady, setLiffReady] = useState(false);
+  const [liffUser, setLiffUser] = useState(null); // { uid, name, phone }
+
+  /* LIFF 初始化 */
+  useEffect(() => {
+    liff.init({ liffId: LIFF_ID })
+      .then(async () => {
+        setLiffReady(true);
+        if (liff.isLoggedIn()) {
+          try {
+            const profile = await liff.getProfile();
+            let phone = "";
+            try {
+              const phoneData = await liff.getPhoneNumber();
+              if (phoneData) {
+                // 格式化電話：+886 → 09
+                let digits = phoneData.replace(/\D/g, "");
+                if (digits.startsWith("886") && digits.length >= 12) {
+                  phone = "0" + digits.slice(3);
+                } else if (digits.startsWith("09")) {
+                  phone = digits.slice(0, 10);
+                } else {
+                  phone = digits;
+                }
+              }
+            } catch {}
+            setLiffUser({
+              uid: profile.userId,
+              name: profile.displayName,
+              phone,
+            });
+          } catch (err) {
+            console.error("LIFF profile error:", err);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("LIFF init error:", err);
+        setLiffReady(true); // Still allow usage without LIFF
+      });
+  }, []);
 
   /* Form state */
   const [form, setForm] = useState({
@@ -101,9 +146,19 @@ export default function CarpoolPage() {
   const pickupAreas = form.direction === "to_taipei" ? YILAN_AREAS : TAIPEI_AREAS;
   const dropoffAreas = form.direction === "to_taipei" ? TAIPEI_AREAS : YILAN_AREAS;
 
-  /* Open form */
+  /* Open form — auto-fill from LIFF */
   const openForm = () => {
-    setForm((prev) => ({ ...prev, direction }));
+    if (!liff.isLoggedIn() && liffReady) {
+      // Not logged in → trigger LIFF login
+      liff.login({ redirectUri: window.location.href });
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      direction,
+      name: prev.name || liffUser?.name || "",
+      phone: prev.phone || liffUser?.phone || "",
+    }));
     setShowForm(true);
   };
 
@@ -115,7 +170,7 @@ export default function CarpoolPage() {
     setPendingRide({
       passenger_name: form.name,
       passenger_phone: form.phone || null,
-      passenger_line_uid: "web_user", // Will be replaced with LIFF UID later
+      passenger_line_uid: liffUser?.uid || "web_user",
       direction: form.direction,
       ride_date: form.date,
       ride_time: form.time,
@@ -171,12 +226,16 @@ export default function CarpoolPage() {
   };
 
   /* Build LINE message for contact */
-  const buildContactUrl = (ride) => {
+  const handleContact = (ride) => {
     const dirLabel = ride.direction === "to_taipei" ? "宜蘭→台北" : "台北→宜蘭";
-    const msg = encodeURIComponent(
-      `你好，我想詢問共乘：\n${formatDate(ride.ride_date)} ${ride.ride_time}\n${ride.pickup_location} → ${ride.dropoff_location}${ride.meeting_point ? `\n上車地點：${ride.meeting_point}` : ""}\n${ride.passenger_count}位乘客`
-    );
-    return `${LINE_OA_URL}?text=${msg}`;
+    const msg = `你好，我想詢問共乘：\n${formatDate(ride.ride_date)} ${ride.ride_time}\n${ride.pickup_location} → ${ride.dropoff_location}${ride.meeting_point ? `\n上車地點：${ride.meeting_point}` : ""}\n${ride.passenger_count}位乘客`;
+    const url = `${LINE_OA_URL}?text=${encodeURIComponent(msg)}`;
+
+    if (liffReady && liff.isInClient()) {
+      liff.openWindow({ url, external: true });
+    } else {
+      window.open(url, "_blank");
+    }
   };
 
   /* ════════════ RENDER ════════════ */
@@ -191,7 +250,11 @@ export default function CarpoolPage() {
         </div>
         <div style={{ textAlign: "right" }}>
           <div className="header-title">宜蘭共乘平台</div>
-          <div className="header-subtitle">YILAN CARPOOL</div>
+          {liffUser ? (
+            <div className="header-subtitle" style={{ color: "#4caf50" }}>{liffUser.name}</div>
+          ) : (
+            <div className="header-subtitle">YILAN CARPOOL</div>
+          )}
         </div>
       </header>
 
@@ -252,14 +315,12 @@ export default function CarpoolPage() {
               </div>
 
               {ride.status !== "matched" && (
-                <a
-                  href={buildContactUrl(ride)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => handleContact(ride)}
                   className="ride-contact-btn"
                 >
                   聯繫共乘
-                </a>
+                </button>
               )}
             </div>
           ))
