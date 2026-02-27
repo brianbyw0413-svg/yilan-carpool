@@ -144,8 +144,11 @@ export default function CarpoolPage() {
 
   /* Open form */
   const openForm = () => {
-    if (liffReady && !liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return; }
-    setForm(p => ({ ...p, direction, name: p.name || liffUser?.name || "", phone: p.phone || liffUser?.phone || "" }));
+    setForm(p => ({
+      ...p, direction,
+      name: p.name || liffUser?.name || "",
+      phone: p.phone || liffUser?.phone || "",
+    }));
     setShowForm(true);
   };
 
