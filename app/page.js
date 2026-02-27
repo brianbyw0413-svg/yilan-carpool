@@ -55,6 +55,23 @@ function formatDate(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()} (${"日一二三四五六"[d.getDay()]})`;
 }
 
+/* ─── 電話格式轉換 ─── */
+function normalizePhone(phone) {
+  if (!phone) return "";
+  // 移除所有非數字
+  let d = phone.replace(/\D/g, "");
+  // +88609xxxxxxxx → 09xxxxxxxx
+  if (d.startsWith("886") && d.length >= 12) {
+    return "0" + d.slice(3);
+  }
+  // 09xxxxxxxx
+  if (d.startsWith("09") && d.length >= 10) {
+    return d.slice(0, 10);
+  }
+  // 其他格式直接回傳（但限制10碼以內）
+  return d.slice(0, 10);
+}
+
 function getRideLayer(ride) {
   if (ride.status === "matched") return "matched";
   if (ride.role === "driver") return "public";
@@ -114,8 +131,7 @@ export default function CarpoolPage() {
             try {
               const pd = await liff.getPhoneNumber();
               if (pd) {
-                let d = pd.replace(/\D/g, "");
-                phone = d.startsWith("886") && d.length >= 12 ? "0" + d.slice(3) : d.startsWith("09") ? d.slice(0, 10) : d;
+                phone = normalizePhone(typeof pd === 'string' ? pd : (pd.phoneNumber || ""));
               }
             } catch {}
             setLiffUser({ uid: profile.userId, name: profile.displayName, phone });
@@ -170,7 +186,7 @@ export default function CarpoolPage() {
     setForm(p => ({
       ...p, direction,
       name: p.name || liffUser?.name || "",
-      phone: p.phone || liffUser?.phone || "",
+      phone: normalizePhone(p.phone || liffUser?.phone || ""),
     }));
     setShowForm(true);
   };
@@ -185,7 +201,7 @@ export default function CarpoolPage() {
     setPendingRide({
       role: form.role,
       passenger_name: form.name,
-      passenger_phone: form.phone || null,
+      passenger_phone: normalizePhone(form.phone) || null,
       passenger_line_uid: liffUser?.uid || "web_user",
       direction: form.direction,
       ride_date: form.date,
@@ -400,7 +416,7 @@ export default function CarpoolPage() {
 
               <div className="form-group">
                 <label className="form-label">聯絡電話（選填）</label>
-                <input type="tel" className="form-input" placeholder="0912-345-678" value={form.phone} onChange={(e) => u("phone", e.target.value)} />
+                <input type="tel" className="form-input" placeholder="0912-345-678" value={form.phone} onChange={(e) => u("phone", normalizePhone(e.target.value))} />
               </div>
 
               <div className="form-row">
