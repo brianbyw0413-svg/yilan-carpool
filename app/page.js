@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import liff from "@line/liff";
 
 /* ─── Constants ─── */
-const LIFF_ID = "2009218677-iJIIF1oj"; // TODO: 老闆建新的 LIFF app 後替換
+const LIFF_ID = "2009262593-SeB2VF83";
 const LINE_OA_ID = "@835acfgq";
 const LINE_OA_URL = `https://line.me/R/oaMessage/${LINE_OA_ID}/`;
 const YILAN_AREAS = [
