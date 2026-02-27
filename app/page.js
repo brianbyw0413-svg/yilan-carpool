@@ -294,7 +294,7 @@ export default function CarpoolPage() {
             <div key={ride.id} className="ride-card">
               <div className="ride-card-header">
                 <span className="ride-date">
-                  {formatDate(ride.ride_date)} {ride.ride_time}
+                  {formatDate(ride.ride_date)} {ride.ride_time.slice(0, 5)}
                 </span>
                 <span className={`ride-status ${ride.status === "matched" ? "matched" : "available"}`}>
                   {ride.status === "matched" ? "已媒合" : "尋找共乘"}
@@ -308,11 +308,15 @@ export default function CarpoolPage() {
               </div>
 
               <div className="ride-meta">
-                <span>{ride.passenger_count} 位乘客</span>
+                <span>{ride.passenger_count}位乘客</span>
                 <span>{ride.passenger_name}</span>
-                {ride.meeting_point && <span>📍 {ride.meeting_point}</span>}
-                {ride.note && <span>{ride.note}</span>}
               </div>
+              {ride.meeting_point && (
+                <div className="ride-meeting">📍 {ride.meeting_point}</div>
+              )}
+              {ride.note && (
+                <div className="ride-meeting">{ride.note}</div>
+              )}
 
               {ride.status !== "matched" && (
                 <button
