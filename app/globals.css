@@ -139,6 +139,11 @@ body {
   color: var(--green);
 }
 
+.ride-status.driver {
+  background: rgba(33, 150, 243, 0.15);
+  color: var(--blue);
+}
+
 .ride-status.priority {
   background: rgba(255, 152, 0, 0.15);
   color: var(--orange);
@@ -540,4 +545,66 @@ body {
   .modal-overlay {
     align-items: center;
   }
+}
+
+/* ─── Role Tag ─── */
+.role-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.role-tag.passenger {
+  background: rgba(76, 175, 80, 0.12);
+  color: var(--green);
+}
+
+.role-tag.driver {
+  background: rgba(33, 150, 243, 0.12);
+  color: var(--blue);
+}
+
+/* ─── Role Selector ─── */
+.role-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.role-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-option.active {
+  border-color: var(--gold);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.role-option-icon {
+  font-size: 24px;
+}
+
+.role-option-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.role-option.active .role-option-title {
+  color: var(--gold);
+}
+
+.role-option-desc {
+  font-size: 11px;
+  color: var(--text-dim);
 }
