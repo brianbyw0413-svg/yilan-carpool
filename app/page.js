@@ -144,9 +144,10 @@ export default function CarpoolPage() {
   /* Form */
   const [form, setForm] = useState({
     role: "passenger", name: "", phone: "", direction: "to_taipei",
-    date: getTomorrow(), time: "07:00",
+    date: getToday(), time: "07:00",
     pickup: "", dropoff: "", meetingPoint: "", dropoffPoint: "",
     passengers: "1", seats: "3", note: "",
+    cost_share: "200元/每位",
   });
   const u = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -198,8 +199,8 @@ export default function CarpoolPage() {
     const isDriver = form.role === "driver";
     const noteArr = [form.note];
     if (!isDriver && form.dropoffPoint) noteArr.unshift(`下車地點：${form.dropoffPoint}`);
+    if (isDriver && form.cost_share) noteArr.unshift(`費用分攤：${form.cost_share}`);
     setPendingRide({
-      role: form.role,
       passenger_name: form.name,
       passenger_phone: normalizePhone(form.phone) || null,
       passenger_line_uid: liffUser?.uid || "web_user",
@@ -483,6 +484,18 @@ export default function CarpoolPage() {
                   )}
                 </select>
               </div>
+
+              {form.role === "driver" && (
+                <div className="form-group">
+                  <label className="form-label">費用分攤 (選填)</label>
+                  <input type="text" className="form-input" 
+                    placeholder="例如：200元/每位" 
+                    value={form.cost_share} onChange={(e) => u("cost_share", e.target.value)} />
+                  <div style={{ fontSize: 11, color: "var(--orange)", marginTop: 4, lineHeight: 1.5 }}>
+                    如有需分擔油錢過路費請在此註記
+                  </div>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">備註（選填）</label>
