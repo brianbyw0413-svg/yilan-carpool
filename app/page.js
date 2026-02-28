@@ -105,6 +105,7 @@ export default function CarpoolPage() {
   const [direction, setDirection] = useState("to_taipei");
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
@@ -157,12 +158,18 @@ export default function CarpoolPage() {
   /* Fetch */
   const fetchRides = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const { data, error } = await supabase.from("carpool_rides").select("*")
       .gte("ride_date", getToday())
       .in("status", ["priority", "public", "matched"])
       .order("ride_date", { ascending: true })
       .order("ride_time", { ascending: true });
-    if (!error) setRides(data || []);
+    if (error) {
+      console.error("Supabase error:", error);
+      setError(error.message);
+    } else {
+      setRides(data || []);
+    }
     setLoading(false);
   }, []);
 
@@ -311,6 +318,12 @@ export default function CarpoolPage() {
 
       {/* ─── Rides ─── */}
       <div className="rides-container">
+        {error && (
+          <div className="empty-state" style={{ background: '#fee2e2', padding: 16, borderRadius: 8, margin: 16 }}>
+            <div className="empty-state-icon">⚠️</div>
+            <div className="empty-state-text" style={{ color: '#dc2626' }}>載入失敗: {error}</div>
+          </div>
+        )}
         {loading ? (
           <div className="empty-state">
             <div className="empty-state-icon" style={{ animation: "pulse 1.5s infinite" }}>🔄</div>
