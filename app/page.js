@@ -176,7 +176,7 @@ export default function CarpoolPage() {
   useEffect(() => { fetchRides(); const id = setInterval(fetchRides, 30000); return () => clearInterval(id); }, [fetchRides]);
 
   /* 排序：認證置頂 */
-  const filteredRides = rides
+  const filteredRides = (rides || [])
     .filter(r => r.direction === direction)
     .sort((a, b) => {
       const ca = isCertified(a) ? 0 : 1;
