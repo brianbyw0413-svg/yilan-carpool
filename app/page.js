@@ -229,8 +229,8 @@ export default function CarpoolPage() {
     const { error } = await supabase.from("carpool_rides").insert([rideData]).select();
     
     if (error) {
-      alert("發布失敗，請稍後再試");
-      console.error(error);
+      alert("發布失敗: " + error.message);
+      console.error("Supabase insert error:", error);
     } else {
       setForm({ 
         role: "passenger", name: liffUser?.name || "", phone: liffUser?.phone || "", 
