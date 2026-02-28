@@ -192,15 +192,18 @@ export default function CarpoolPage() {
     setShowForm(true);
   };
 
-  /* Submit → disclaimer */
-  const handleSubmit = (e) => {
+  /* Submit → direct insert */
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.pickup || !form.dropoff) return;
+    
+    setSubmitting(true);
     const isDriver = form.role === "driver";
     const noteArr = [form.note];
     if (!isDriver && form.dropoffPoint) noteArr.unshift(`下車地點：${form.dropoffPoint}`);
     if (isDriver && form.cost_share) noteArr.unshift(`費用分攤：${form.cost_share}`);
-    setPendingRide({
+
+    const rideData = {
       passenger_name: form.name,
       passenger_phone: normalizePhone(form.phone) || null,
       passenger_line_uid: liffUser?.uid || "web_user",
@@ -214,25 +217,31 @@ export default function CarpoolPage() {
       note: noteArr.filter(Boolean).join(" / ") || null,
       status: isDriver ? "public" : "priority",
       priority_expires_at: isDriver ? null : new Date(Date.now() + PRIORITY_MINUTES * 60000).toISOString(),
-    });
-    setSuccessRole(form.role);
-    setShowForm(false);
-    setShowDisclaimer(true);
+    };
+
+    const { error } = await supabase.from("carpool_rides").insert([rideData]).select();
+    
+    if (error) {
+      alert("發布失敗，請稍後再試");
+      console.error(error);
+    } else {
+      setForm({ 
+        role: "passenger", name: liffUser?.name || "", phone: liffUser?.phone || "", 
+        direction: form.direction, date: getToday(), time: "07:00", 
+        pickup: "", dropoff: "", meetingPoint: "", dropoffPoint: "", 
+        passengers: "1", seats: "3", note: "", cost_share: "200元/每位" 
+      });
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 4000);
+      setShowForm(false);
+      fetchRides();
+    }
+    setSubmitting(false);
   };
 
   /* Confirm → insert */
   const confirmDisclaimer = async () => {
-    if (!pendingRide) return;
-    setSubmitting(true);
-    const { error } = await supabase.from("carpool_rides").insert([pendingRide]).select();
-    if (error) { alert("發布失敗，請稍後再試"); console.error(error); }
-    else {
-      setForm({ role: "passenger", name: liffUser?.name || "", phone: liffUser?.phone || "", direction: form.direction, date: getTomorrow(), time: "07:00", pickup: "", dropoff: "", meetingPoint: "", dropoffPoint: "", passengers: "1", seats: "3", note: "" });
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 4000);
-      fetchRides();
-    }
-    setShowDisclaimer(false); setPendingRide(null); setSubmitting(false);
+    // No longer used in simplified flow
   };
 
   /* 聯繫 */
